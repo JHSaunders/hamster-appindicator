@@ -36,6 +36,8 @@ import datetime as dt
 import pygtk
 pygtk.require("2.0")
 
+
+
 import dbus, dbus.service, dbus.mainloop.glib
 import locale
 
@@ -46,7 +48,6 @@ from hamster import stuff
 # controllers for other windows
 from hamster import widgets
 from hamster import idle
-
 from hamster.applet import HamsterApplet
 
 import pango
@@ -80,7 +81,7 @@ class FakeApplet(object):
 
 
 class HamsterIndicator(HamsterApplet):
-
+    
     def __init__(self, applet=None):
         # Create a fake applet since HamsterApplet requires one
         applet = FakeApplet()
@@ -88,15 +89,15 @@ class HamsterIndicator(HamsterApplet):
         self.indicator = appindicator.Indicator ("hamster-applet",
                                   "hamster-applet",#"file-manager",
                                   appindicator.CATEGORY_SYSTEM_SERVICES)
-    #                              appindicator.CATEGORY_APPLICATION_STATUS)
         self.indicator.set_status (appindicator.STATUS_ACTIVE)
-    #    ind.set_attention_icon ("indicator-messages-new")
-
-        self.activity, self.duration = None, None
+        self.indicator.set_label("")
+        
+        #timer
+        self.activity, self.duration = None, None        
         
         self.menu = gtk.Menu()
 
-        self.activity_item = gtk.MenuItem("Fixing hamster  00:24")
+        self.activity_item = gtk.MenuItem("")
         self.menu.append(self.activity_item)
         # this is where you would connect your menu item up with a function:
         self.activity_item.connect("activate", self.on_new_activity_activated, None)
@@ -154,21 +155,28 @@ class HamsterIndicator(HamsterApplet):
         # Hide the panel button since it's not supported
         self.button.hide()
 
-        self.window.set_title(_(u"Time Tracker"))
+        #self.window.set_title(_(u"Time Tracker"))
 
         # Add a window decoration
-        self.window.set_decorated(True)
+        #self.window.set_decorated(True)
 
         # Place the window near the mouse cursor
         self.window.set_position(gtk.WIN_POS_MOUSE)
 
         # Do not skip the taskbar
-        self.window.set_skip_taskbar_hint(False)
+        self.window.set_skip_taskbar_hint(True)
 
         # Do not skip the pager
-        self.window.set_skip_pager_hint(False)
-
-
+        self.window.set_skip_pager_hint(True)
+    
+    def update_header(self):
+        if self.last_activity and self.last_activity['end_time'] is None:            
+            if self.duration:
+              label = "%s %s" % (self.shorten_activity_text(self.activity), self.duration)
+            self.indicator.set_label(label)
+        else:
+            self.indicator.set_label("")
+    
     def on_new_activity_activated(self, *args):
         self.show_dialog()
 
@@ -193,7 +201,7 @@ class HamsterIndicator(HamsterApplet):
         '''This adds a method which belongs to hamster.applet.PanelButton'''
         label = self.activity
         if self.duration:
-            label = "%s %s" % (self.activity, self.duration)
+            label = "%s %s" % (self.shorten_activity_text(self.activity), self.duration)
  
         label = '<span gravity="south">%s</span>' % label
         
@@ -214,16 +222,19 @@ class HamsterIndicator(HamsterApplet):
         '''Override for menu items sensitivity and to update the menu'''
         if self.last_activity and self.last_activity['end_time'] is None:
             self.stop_activity_item.set_sensitive(1)
+            
             delta = dt.datetime.now() - self.last_activity['start_time']
-            duration = delta.seconds /  60
+            duration = delta.seconds /  60            
             label = "%s %s" % (self.last_activity['name'],
                                stuff.format_duration(duration, False))
             self.set_activity_text(self.last_activity['name'],
                                  stuff.format_duration(duration, False))
+            self.update_header()
         else:
             self.stop_activity_item.set_sensitive(0)
-            label = "%s" % _(u"New activity")#_(u"No activity")
+            label = "%s" % _(u"New activity")#_(u"No activity")            
             self.set_activity_text(label, None)
+            self.update_header()
 
         # Update the menu or the new activity text won't show up
         self.refresh_menu()
@@ -252,15 +263,17 @@ class HamsterIndicator(HamsterApplet):
         super(HamsterIndicator, self).on_switch_activity_clicked(widget)
 
     def set_activity_text(self, activity, duration):
-        '''This adds a method which belongs to hamster.applet.PanelButton'''
-        activity = stuff.escape_pango(activity)
-        if len(activity) > 25:  #ellipsize at some random length
-            activity = "%s%s" % (activity[:25], "&#8230;")
-
+        '''This adds a method which belongs to hamster.applet.PanelButton'''        
         self.activity = activity
         self.duration = duration
         self.reformat_label()
-
+    
+    def shorten_activity_text(self, activity):
+        activity = stuff.escape_pango(activity)
+        if len(activity) > 25:  #ellipsize at some random length
+            activity = "%s%s" % (activity[:25], "...")
+        return activity
+        
     def show_dialog(self, is_active=True):
         """Show new task window"""
         self.button.set_active(is_active)
@@ -271,24 +284,18 @@ class HamsterIndicator(HamsterApplet):
 
 #        # doing unstick / stick here, because sometimes while switching
 #        # between workplaces window still manages to disappear
-#        self.window.unstick()
-#        self.window.stick() #show on all desktops
+        self.window.unstick()
+        self.window.stick() #show on all desktops
 
         self.new_name.set_text("");
         self.new_tags.set_text("");
         gobject.idle_add(self._delayed_display)
 
-
-
-if __name__ == "__main__":
-
-
+def start_indicator():
     from hamster import i18n
     i18n.setup_i18n()
-
     hamster_indicator = HamsterIndicator()
-
-#    ind.set_menu(hamster_indicator.menu)
-
-
     gtk.main()
+    
+if __name__ == "__main__":
+    start_indicator()
