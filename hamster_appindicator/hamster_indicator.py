@@ -175,7 +175,7 @@ class HamsterIndicator(HamsterApplet):
               label = "%s %s" % (self.shorten_activity_text(self.activity), self.duration)
             self.indicator.set_label(label)
         else:
-            self.indicator.set_label("")
+            self.indicator.set_label("No activity")
     
     def on_new_activity_activated(self, *args):
         self.show_dialog()
