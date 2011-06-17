@@ -43,7 +43,7 @@ import locale
 
 from hamster.configuration import conf, runtime, dialogs
 
-from hamster import stuff
+from hamster import stuff, client
 
 # controllers for other windows
 from hamster import widgets
@@ -85,6 +85,9 @@ class HamsterIndicator(HamsterApplet):
     def __init__(self, applet=None):
         # Create a fake applet since HamsterApplet requires one
         applet = FakeApplet()
+        self.storage = client.Storage()
+        
+        self.prev_activity_menuitems = [] #holds the list of previous activity menu items
         
         self.indicator = appindicator.Indicator ("hamster-applet",
                                   "hamster-applet",#"file-manager",
@@ -229,16 +232,61 @@ class HamsterIndicator(HamsterApplet):
                                stuff.format_duration(duration, False))
             self.set_activity_text(self.last_activity['name'],
                                  stuff.format_duration(duration, False))
-            self.update_header()
         else:
             self.stop_activity_item.set_sensitive(0)
             label = "%s" % _(u"New activity")#_(u"No activity")            
             self.set_activity_text(label, None)
-            self.update_header()
-
+        
+        self.update_header()
+        
         # Update the menu or the new activity text won't show up
         self.refresh_menu()
-
+        
+        self.update_prev()
+    
+    def update_prev(self):
+        '''Updates the list of previous activities, shows last 5 activities'''
+        num_prev = len(self.prev_activity_menuitems)
+        for item in self.prev_activity_menuitems:
+            
+            self.menu.remove(item)
+        if num_prev>0:
+            self.menu.remove(self.prev_separator)
+            
+        facts = self.storage.get_todays_facts()
+        facts.sort(key = lambda x: x['start_time'])
+        facts.reverse()
+        
+        self.prev_activity_menuitems = []
+        names = set()
+        i = 3
+        for fact in facts:
+            if i -3 > 5:
+                break
+            
+            if fact["name"] in names:
+                continue
+            
+            names.add(fact["name"])
+            item = gtk.MenuItem(self.shorten_activity_text(fact["name"]))
+            item.fact = fact
+            item.connect("activate",self.on_prev_activity_activated)
+            item.show()
+            self.menu.insert(item,i)
+            self.prev_activity_menuitems.append(item)
+            i+=1
+        
+        if len(facts)>0:
+            self.prev_separator = gtk.SeparatorMenuItem()
+            self.menu.insert(self.prev_separator,i)
+            self.prev_separator.show()
+    
+    def on_prev_activity_activated(self, *args):
+        '''When a previous activity's menu item is clicked'''
+        fact = args[0].fact
+        tags = ",".join([x for x in fact["tags"]])
+        self.storage.add_fact(str(fact["name"]) , tags=tags, category_name=str(fact["category"]), description=str(fact["description"]))
+        
     def position_popup(self):
         '''Override the superclass method and do nothing'''
         pass
